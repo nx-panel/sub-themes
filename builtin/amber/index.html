@@ -1,0 +1,1040 @@
+<!doctype html>
+<!--
+  The built-in subscription page, amber edition — the warm serif page selected
+  with sub_theme "builtin:amber". The default (and the fallback when an
+  installed theme fails) is its sibling, ../violet/index.html, which wears the
+  panel's own colours; the two share every line of markup that matters, so a
+  fix to one belongs in the other. It is also a reference implementation a
+  theme is copied from: docs/sub-themes.md documents every value it reads.
+
+  One file on purpose: no build step and no asset request that can fail. The web
+  fonts are the single exception, and they are loaded non-render-blocking (the
+  media=print swap below) precisely because this page is opened by someone whose
+  VPN is *not* up — a filtered fonts.googleapis.com must cost the page nothing
+  but its serif, never a blank screen while the browser waits on a timeout.
+
+  Its strings come from {{ .T }} (internal/api/subpage_i18n.go) in the panel's
+  four locales; subpage_test.go fails the build if a key used here is missing
+  from any of them.
+-->
+<html lang="{{ .Lang }}" dir="{{ .Dir }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>{{ .Panel.Title }}</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Loaded as a print sheet and promoted on load, so a stylesheet that never
+     arrives delays nothing; the serif falls back to Georgia / Noto Naskh. -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:wght@400;600&family=Noto+Naskh+Arabic:wght@400;600&display=swap">
+<style>
+/* ─── tokens ─────────────────────────────────────────────────────────────── */
+:root{
+  --bg:#f3f2f2; --surface:#eae9e9; --text:#201f1d; --accent:#b68235;
+  --divider:rgba(32,31,29,.16);
+  --n200:#eae7e7; --n300:#d7d3d3; --n600:#7d7979; --n700:#605d5d; --n800:#444141;
+  --a100:#fff3e4; --a300:#facb8d; --a700:#7d5411;
+  --sel:rgba(182,130,53,.3); --tint:rgba(32,31,29,.07);
+  --shadow:0 4px 14px rgba(45,43,43,.16);
+  --card:#fbfafa; --r:4px; --rs:2px; --rl:14px; --qr-mat:#eae9e9;
+  --fh:"Cormorant Garamond",Georgia,"Times New Roman",serif;
+  --fb:"Lora",Georgia,"Times New Roman",serif;
+}
+/* Dark: the deep warm ground a shade below neutral-900, ramps inverted, the
+   accent stepped one lighter so it holds on a dark field. Declared twice —
+   once for the OS preference, once for the manual override. */
+@media (prefers-color-scheme:dark){
+  html:not([data-theme=light]){
+    --bg:#1a1918; --surface:#2a2725; --text:#f2efec; --accent:#e1ad66;
+    --divider:rgba(242,239,236,.18);
+    --n200:#35322f; --n300:#46413c; --n600:#a39b94; --n700:#c0b8b0; --n800:#dcd5ce;
+    --a100:#3d2f18; --a300:#7d5f2e; --a700:#ecc890;
+    --sel:rgba(225,173,102,.28); --tint:rgba(242,239,236,.08);
+    --shadow:0 4px 14px rgba(0,0,0,.6); --qr-mat:#2a2725; --card:#211f1e;
+  }
+}
+html[data-theme=dark]{
+  --bg:#1a1918; --surface:#2a2725; --text:#f2efec; --accent:#e1ad66;
+  --divider:rgba(242,239,236,.18);
+  --n200:#35322f; --n300:#46413c; --n600:#a39b94; --n700:#c0b8b0; --n800:#dcd5ce;
+  --a100:#3d2f18; --a300:#7d5f2e; --a700:#ecc890;
+  --sel:rgba(225,173,102,.28); --tint:rgba(242,239,236,.08);
+  --shadow:0 4px 14px rgba(0,0,0,.6); --qr-mat:#2a2725; --card:#211f1e;
+}
+html[dir=rtl]{
+  --fh:"Noto Naskh Arabic",Vazirmatn,"IRANSansX",Tahoma,serif;
+  --fb:"Noto Naskh Arabic",Vazirmatn,"IRANSansX",Tahoma,serif;
+}
+
+/* ─── base ───────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;padding:26px 16px;background:var(--bg);color:var(--text);font:15px/1.55 var(--fb);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--fh);font-weight:600;line-height:1.12;letter-spacing:-.015em;margin:0}
+p{margin:0}
+a{color:var(--accent);text-underline-offset:3px}
+a:hover{color:var(--a700)}
+svg{display:block;flex:none}
+[hidden]{display:none!important}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::selection{background:var(--sel)}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+/* A Latin quantity is not one bidi run: in an RTL page "1.7 GB" splits into a
+   number run and a letter run, which are then laid out right to left and read
+   "GB 1.7". Isolating the figure — and only the figure, never a phrase wrapped
+   around it — keeps the unit with its number in every language. */
+.q{unicode-bidi:isolate;direction:ltr}
+.k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--n600)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;direction:ltr;text-align:left}
+/* The page is a sheet laid on the ground rather than paint on it: the card
+   tone is a single step off --bg, so the hairline and the shadow — not a
+   colour jump — are what make the edge read. */
+.page{max-width:1180px;margin:0 auto;padding:40px 52px 30px;
+  background:var(--card);border:1px solid var(--divider);border-radius:var(--rl);
+  box-shadow:var(--shadow)}
+.sel{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.hr{height:1px;background:var(--divider);border:0;margin:0}
+.rule-ink{height:1px;background:var(--text);opacity:.75;margin-top:20px}
+.rule-hair{height:1px;background:var(--divider);margin-top:3px}
+html:not([data-js]) .js-only{display:none!important}
+
+/* ─── buttons ────────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+  text-decoration:none;font-family:var(--fh);font-weight:600;font-size:14px;line-height:1.2;
+  color:var(--text);background:transparent;border:1px solid transparent;
+  padding:9px 17px;border-radius:var(--r)}
+.btn-1{color:var(--accent);border-color:var(--accent)}
+.btn-1:hover{background:var(--a100);color:var(--accent)}
+.btn-2{border-color:var(--divider)}
+.btn-2:hover{background:var(--tint)}
+.btn-g{color:var(--accent);padding-inline:5px}
+.btn-g:hover{background:var(--a100);color:var(--accent)}
+.btn-block{width:100%;margin-top:9px}
+.btn-sm{font-size:13px;padding:5px 12px}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+  flex:none;cursor:pointer;background:transparent;color:var(--text);
+  border:1px solid var(--divider);border-radius:var(--r)}
+.ibtn:hover{background:var(--tint)}
+.tag{display:inline-flex;align-items:center;font-size:11px;letter-spacing:.02em;padding:3px 10px;
+  border-radius:3px;border:1px solid var(--accent);color:var(--accent);white-space:nowrap}
+.tag-n{border-color:transparent;background:var(--n200);color:var(--n800);text-transform:lowercase}
+.tag-warn{border-color:transparent;background:var(--a100);color:var(--a700)}
+
+/* ─── header ─────────────────────────────────────────────────────────────── */
+.head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.brand{flex:1 1 260px;min-width:0}
+.brand h1{font-weight:400;font-size:46px;line-height:1;letter-spacing:-.02em;overflow-wrap:anywhere}
+.brand .k{margin-top:11px;font-size:11px}
+.hmeta{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--n700);white-space:nowrap}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--n300);display:block}
+.live.on i{background:var(--accent)}
+.hbtns{display:flex;gap:8px;flex:none}
+
+.langs{position:relative}
+.langs>summary{list-style:none}
+.langs>summary::-webkit-details-marker{display:none}
+.menu{position:absolute;top:calc(100% + 6px);inset-inline-end:0;z-index:30;min-width:196px;
+  background:var(--card);border:1px solid var(--divider);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:6px;text-align:start}
+.menu .k{padding:5px 10px 8px;border-bottom:1px solid var(--divider);margin-bottom:4px;
+  font-size:10px;letter-spacing:.14em}
+.menu a{display:block;padding:7px 10px;border-radius:var(--rs);font-size:14px;
+  text-decoration:none;color:var(--text)}
+.menu a:hover{background:var(--n200);color:var(--text)}
+.menu a[aria-current]{background:var(--a100);color:var(--a700)}
+
+.notice{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--divider)}
+.notice .k{flex:none;color:var(--accent)}
+.notice p{font-size:14px;font-style:italic;color:var(--n800);white-space:pre-wrap}
+
+/* ─── tabs ───────────────────────────────────────────────────────────────── */
+.tabs{display:flex;align-items:flex-end;gap:30px;margin-top:26px;border-bottom:1px solid var(--divider)}
+.tabs label{font-family:var(--fh);font-weight:600;font-size:19px;letter-spacing:-.01em;
+  color:var(--n700);padding-bottom:12px;cursor:pointer}
+.tabs label:hover{color:var(--text)}
+#v1:checked~.tabs label[for=v1],#v2:checked~.tabs label[for=v2],#v3:checked~.tabs label[for=v3]{
+  color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+#v1:focus-visible~.tabs label[for=v1],#v2:focus-visible~.tabs label[for=v2],#v3:focus-visible~.tabs label[for=v3]{
+  outline:2px solid var(--accent);outline-offset:2px}
+.t-meta{margin-inline-start:auto;padding-bottom:12px;font-size:11px}
+.panel{display:none;margin-top:26px}
+#v1:checked~#p1,#v2:checked~#p2,#v3:checked~#p3{display:block}
+
+/* ─── account ────────────────────────────────────────────────────────────── */
+.band{display:flex;align-items:stretch}
+.b-ring{flex:none;width:250px;display:flex;align-items:center;justify-content:center;
+  padding-inline-end:36px;border-inline-end:1px solid var(--divider)}
+.b-figs{flex:1;min-width:0;padding-inline:36px;border-inline-end:1px solid var(--divider);
+  display:grid;grid-template-columns:1fr 1fr;column-gap:30px;align-content:center}
+.b-dates{flex:none;width:296px;padding-inline-start:36px;display:flex;flex-direction:column;justify-content:center}
+.ring{position:relative;width:192px;height:192px}
+.ring svg{width:100%;height:100%}
+.ring-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:4px;text-align:center}
+.ring-v{font-family:var(--fh);font-weight:400;font-size:60px;line-height:1}
+.ring-v small{font-size:28px}
+.fig{padding:10px 0;border-bottom:1px solid var(--divider)}
+.fig-v{font-family:var(--fh);font-size:32px;line-height:1.1;white-space:nowrap}
+.split{padding:10px 0;display:flex;align-items:center;gap:8px}
+.split svg{stroke:var(--accent)}
+.split b{display:block;font-size:16px;font-weight:400}
+.b-note{grid-column:1/-1;padding-top:14px;font-size:12.5px;color:var(--n700)}
+.dl{width:100%;border-collapse:collapse;font-size:14px}
+.dl td{padding:9px;border-bottom:1px solid var(--divider);padding-inline:0}
+.dl td:first-child{color:var(--n700)}
+.dl td:last-child{text-align:end}
+.b-cta{margin-top:16px;font-size:13.5px;color:var(--n700)}
+
+/* ─── usage history ──────────────────────────────────────────────────────── */
+.hist{margin-top:24px;padding-top:18px;border-top:1px solid var(--divider)}
+.hist-h{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.hist-key{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--n700)}
+.hist-key i{width:8px;height:8px;border-radius:2px;flex:none}
+.hist-key i+i{margin-inline-start:9px}
+.sw-d{background:var(--accent)}
+.sw-u{background:var(--n600)}
+.hist .seg{margin-inline-start:auto}
+/* Ranges are switched by the same :checked trick as the page tabs — three
+   pre-rendered charts, no script, no second request. */
+.hist-p{display:none}
+#h0:checked~.hist-p0,#h1:checked~.hist-p1,#h2:checked~.hist-p2{display:block}
+#h0:checked~.hist-h .seg label[for=h0],#h1:checked~.hist-h .seg label[for=h1],
+#h2:checked~.hist-h .seg label[for=h2]{color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+/* preserveAspectRatio="none" lets the bars-by-100 viewBox stretch to whatever
+   width the card has, so the chart reflows with the page and costs no script. */
+.hist-c{display:block;width:100%;height:88px}
+.hist-c .bd{fill:var(--accent)}
+.hist-c .bu{fill:var(--n600)}
+/* A full-height transparent slot per bar, so the title tooltip answers on a
+   quiet day too, not only where a bar is tall enough to hit. */
+.hist-c .bt{fill:transparent}
+.hist-base{height:1px;background:var(--divider)}
+.hist-none{height:88px;display:flex;align-items:center;justify-content:center;color:var(--n600)}
+/* Pinned LTR: the bars run oldest-to-newest left to right in every language,
+   so the labels under them have to stay on the same ends. */
+.hist-x{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:7px;direction:ltr}
+.hist-t{font-size:14px;color:var(--text)}
+
+/* ─── segmented ──────────────────────────────────────────────────────────── */
+.seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--r);overflow:hidden;flex-wrap:wrap}
+.seg label,.seg button{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;font:inherit;
+  font-size:13px;color:var(--text);background:transparent;border:0;cursor:pointer}
+.seg label+label,.seg button+button{border-inline-start:1px solid var(--divider)}
+.seg label:hover,.seg button:hover{background:var(--tint)}
+.seg button[aria-pressed=true]{color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+#pf1:checked~.seg label[for=pf1],#pf2:checked~.seg label[for=pf2],#pf3:checked~.seg label[for=pf3],
+#pf4:checked~.seg label[for=pf4],#pf5:checked~.seg label[for=pf5]{
+  color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+
+/* ─── set up ─────────────────────────────────────────────────────────────── */
+.steps{display:flex;align-items:stretch}
+.scol{flex:1;min-width:0}
+.scol:first-child{padding-inline-end:36px;border-inline-end:1px solid var(--divider)}
+.scol+.scol{padding-inline-start:36px}
+.step{display:flex;gap:20px}
+.step-n{font-family:var(--fh);font-weight:400;font-size:46px;line-height:.85;color:var(--a300);flex:none}
+.step-b{flex:1;min-width:0}
+.step h3{font-size:18px;margin-bottom:3px}
+.step p{font-size:13.5px;color:var(--n700)}
+.step3{display:flex;gap:20px;align-items:baseline;margin-top:26px;padding-top:18px;border-top:1px solid var(--divider)}
+.step3 .step-n{font-size:34px}
+.step3 h3{flex:none;font-size:18px}
+.apps{display:none;grid-template-columns:1fr 1fr;gap:8px}
+#pf1:checked~#ap1,#pf2:checked~#ap2,#pf3:checked~#ap3,#pf4:checked~#ap4,#pf5:checked~#ap5{display:grid}
+/* One row per app: the deep link that imports the subscription, and beside it
+   the store / release page where the app itself is downloaded. */
+.app{display:flex;gap:4px;min-width:0}
+.app>.btn:first-child{flex:1;justify-content:space-between;gap:8px;min-width:0;white-space:nowrap}
+.app .store{flex:none;padding-inline:9px;color:var(--n700)}
+.linkbox{display:flex;align-items:center;gap:9px;border:1px solid var(--divider);
+  border-radius:var(--r);padding:8px 10px}
+.linkbox code{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qr-row{display:flex;gap:20px;align-items:flex-start;margin-top:14px}
+/* A matted print: the frame picks up the page's radius, and the white sits on
+   the code itself — qrSVG draws its modules edge to edge, so without that
+   padding the quiet zone would be the mat, which is dark in the dark theme. */
+.plate{flex:none;background:var(--qr-mat);border:1px solid var(--divider);border-radius:var(--r);padding:7px}
+.plate svg{width:172px;height:172px;padding:8px;background:#fff}
+
+/* ─── advanced ───────────────────────────────────────────────────────────── */
+.sec-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-h h3{font-size:18px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+.tbl th{text-align:start;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--n600);padding:9px;border-bottom:1px solid var(--divider);font-weight:400}
+.tbl td{padding:9px;border-bottom:1px solid var(--divider);overflow-wrap:anywhere}
+.tbl tr:hover{background:var(--tint)}
+.tbl th:first-child,.tbl td:first-child{padding-inline-start:0}
+.tbl th:last-child,.tbl td:last-child{padding-inline-end:0;text-align:end}
+.tbl .sub{display:none;font-size:11.5px;color:var(--n600)}
+.tbl .dim{color:var(--n700)}
+.formats{margin-top:26px}
+.fmt{display:flex;flex-wrap:wrap;gap:7px}
+/* Config files: one card per dedicated-app config, carrying the same three
+   affordances the panel offers — scan, read, save. */
+.files{margin-top:26px;padding-top:22px;border-top:1px solid var(--divider)}
+.fcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:16px;margin-top:12px;
+  /* Each card keeps its own height, so opening one config's text does not
+     stretch every other card in its row. */
+  align-items:start}
+.fcard{display:flex;flex-direction:column;gap:11px;padding:13px;
+  border:1px solid var(--divider);border-radius:var(--r)}
+/* The protocol chip anchors the corner; the config's own name gets a line of
+   its own, centred over the code the way a caption sits over a plate. */
+.fcard-h .tag{display:inline-block}
+/* One line, cut with an ellipsis: a long tag or node name must not make one
+   tile taller than the rest of its row. The full string stays in the title
+   attribute, and the file name is on the download either way. */
+.fcard-h b{display:block;margin-top:8px;text-align:center;font-weight:500;font-size:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcard .plate{align-self:center}
+.fcard .noqr{margin:0;text-align:center;font-size:12.5px;color:var(--n700)}
+/* The filename doubles as the disclosure for the text itself; a dotted rule
+   says so without a caret, which would have to be mirrored in RTL. */
+.fcard summary{display:block;cursor:pointer;font-size:12px;color:var(--n700);list-style:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-decoration:underline dotted;text-underline-offset:3px}
+.fcard summary::-webkit-details-marker{display:none}
+.fcard summary:hover{color:var(--n900)}
+.fcard pre{margin-top:8px;max-height:190px;overflow:auto;padding:9px;
+  background:var(--tint);border-radius:var(--rs);font-size:11.5px;line-height:1.55;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.fcard-act{display:flex;gap:7px;margin-top:auto}
+.foot{text-align:center;padding-top:24px;margin-top:24px;border-top:1px solid var(--divider);
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--n600)}
+.empty{margin-top:14px;font-size:14px;color:var(--n700)}
+.note-p{margin:4px 0 11px;font-size:13.5px;color:var(--n700)}
+
+/* ─── narrow ─────────────────────────────────────────────────────────────── */
+@media (max-width:1100px){
+  .page{padding-inline:36px}
+  .b-ring{width:210px;padding-inline-end:26px}
+  .b-figs{padding-inline:26px;column-gap:20px}
+  .b-dates{width:250px;padding-inline-start:26px}
+  .ring{width:160px;height:160px}
+  .ring-v{font-size:50px}
+  .ring-v small{font-size:23px}
+  .fig-v{font-size:26px}
+  .scol:first-child{padding-inline-end:26px}
+  .scol+.scol{padding-inline-start:26px}
+  .step{gap:14px}
+  .step-n{font-size:38px}
+}
+@media (max-width:900px){
+  /* The sheet keeps its edge on a phone — only its gutter and padding shrink. */
+  body{padding:12px}
+  .page{padding:22px 18px 18px;border-radius:10px}
+  .head{align-items:flex-start;gap:12px}
+  .brand{flex:1 1 auto}
+  .brand h1{font-size:29px}
+  .brand .k{margin-top:8px;font-size:10px;letter-spacing:.14em}
+  .hmeta{order:3;flex-basis:100%;gap:10px;padding:10px 0;border-bottom:1px solid var(--divider)}
+  .rule-ink{margin-top:16px}
+  .ibtn{width:32px;height:32px}
+  .notice{display:block;border:1px solid var(--divider);border-top:1px solid var(--accent);
+    padding:10px 12px;margin-top:16px}
+  .notice .k{font-size:9.5px}
+  .notice p{margin-top:4px;font-size:13px}
+
+  .tabs{gap:0;margin-top:18px;border:1px solid var(--divider);border-radius:var(--r);overflow:hidden}
+  .tabs label{flex:1;text-align:center;font-family:var(--fb);font-weight:400;font-size:12.5px;
+    padding:9px 0;letter-spacing:0}
+  .tabs label+label{border-inline-start:1px solid var(--divider)}
+  #v1:checked~.tabs label[for=v1],#v2:checked~.tabs label[for=v2],#v3:checked~.tabs label[for=v3]{
+    box-shadow:inset 0 0 0 1px var(--accent)}
+  .t-meta{display:none}
+  .panel{margin-top:18px}
+
+  .band{flex-wrap:wrap;gap:16px}
+  .b-ring{width:118px;padding:0;border:0}
+  .b-figs{flex:1 1 170px;padding:0;border:0;column-gap:12px}
+  .b-dates{width:100%;padding:0;margin-top:2px}
+  .ring{width:118px;height:118px}
+  .ring-v{font-size:36px}
+  .ring-v small{font-size:17px}
+  .ring-c .k{font-size:9px;letter-spacing:.14em}
+  .fig{padding:5px 0}
+  .fig-v{font-size:19px}
+  .split{padding:6px 0;gap:5px;font-size:13px}
+  .split .k{display:none}
+  .split b{display:inline;font-size:13px}
+  .b-note{padding:8px 0;margin-top:8px;border-top:1px solid var(--divider);
+    border-bottom:1px solid var(--divider);font-size:11.5px}
+  .dl{font-size:13.5px}
+  .dl td{padding-block:7px}
+
+
+  .steps{display:block}
+  .scol:first-child{padding:0;border:0}
+  .scol+.scol{padding:18px 0 0;margin-top:18px;border-top:1px solid var(--divider)}
+  .step{gap:14px}
+  .step-n{font-size:32px;width:34px;text-align:end}
+  .step h3{font-size:16px}
+  .step p{font-size:13px}
+  .step3{margin-top:18px;padding-top:18px;gap:14px;flex-wrap:wrap}
+  .step3 .step-n{font-size:32px;width:34px;text-align:end}
+  .step3 h3{font-size:16px}
+  /* Two columns of app rows leaves each name about seventy pixels — less than
+     "Shadowrocket" needs — so on a phone the apps become one column and every
+     row gets the sheet's full width: the deep link with its name, and the
+     store button beside it. */
+  .apps{grid-template-columns:1fr;gap:6px}
+  .apps a{font-size:13px;padding-inline:10px}
+
+  /* Five platforms will not sit on one phone-wide line, and letting the
+     segmented control wrap leaves a ragged second row whose dividers land in
+     the wrong places. A six-column grid instead lays them out deliberately:
+     three cells across the top, two across the bottom, each one full-height
+     and separated by the same hairline as the desktop control. */
+  .seg-pf{display:grid;grid-template-columns:repeat(6,1fr)}
+  .seg-pf label{justify-content:center;text-align:center;padding:9px 4px}
+  .seg-pf label:nth-child(-n+3){grid-column:span 2}
+  .seg-pf label:nth-child(n+4){grid-column:span 3;border-top:1px solid var(--divider)}
+  .seg-pf label:nth-child(4){border-inline-start:0}
+  .linkbox code{font-size:11px}
+  .qr-row{justify-content:center}
+
+  /* A table cannot narrow past its widest cell, and a config name beside a
+     node address is wider than a phone — so on a phone the row stops being a
+     row and becomes a two-line entry:
+
+       name ............................ Copy
+       [proto]  host:port · transport · tls
+
+     The name and the copy button hold the top line, so the button sits in the
+     same place in every entry instead of drifting off the edge; the chip and
+     the address share the line below, where the address gets the width it
+     needs. `display:contents` on the name cell hands its two children to the
+     row's grid directly, which is what lets them sit on different lines. */
+  .tbl{font-size:13px;display:block}
+  .tbl thead{display:none}
+  .tbl tbody{display:block}
+  .tbl tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"nm nm cp" "tg ad ad";
+    align-items:center;column-gap:10px;row-gap:6px;padding:10px 0;
+    border-bottom:1px solid var(--divider)}
+  .tbl td{display:block;min-width:0;padding:0;border:0}
+  .tbl td.c-name{display:contents}
+  .tbl .nm{grid-area:nm;min-width:0}
+  .tbl .sub{display:block;grid-area:ad;min-width:0}
+  .tbl td.c-tag{grid-area:tg}
+  .tbl td.c-copy{grid-area:cp;text-align:end}
+  .tbl .hide-n{display:none}
+  .tbl .btn{white-space:nowrap}
+  .fmt{display:grid;grid-template-columns:1fr 1fr}
+  .foot{padding-top:16px;margin-top:18px;font-size:10px}
+}
+/* ─── persian ────────────────────────────────────────────────────────────────
+   Naskh puts far less ink in the em box than the Latin serif, so the same px
+   reads a size smaller — the body steps up and the small-caps labels, already
+   the smallest type here, step up further. Tracking goes to zero throughout:
+   the script is joined, and letter-spacing pulls the joins apart. This block
+   sits last so it also outranks the equally specific rules in the media
+   queries above; the uppercasing is left alone, being a no-op on Arabic. */
+html[dir=rtl] body{font-size:16.5px}
+html[dir=rtl] h1,html[dir=rtl] h2,html[dir=rtl] h3,html[dir=rtl] .k,html[dir=rtl] .tag,
+html[dir=rtl] .live,html[dir=rtl] .tbl th,html[dir=rtl] .tabs label,html[dir=rtl] .foot,
+html[dir=rtl] .brand h1,html[dir=rtl] .menu .k{letter-spacing:0}
+html[dir=rtl] .k{font-size:12px}
+html[dir=rtl] .brand .k{font-size:12.5px}
+html[dir=rtl] .notice .k,html[dir=rtl] .ring-c .k{font-size:11px}
+html[dir=rtl] .tag,html[dir=rtl] .live,html[dir=rtl] .tbl th{font-size:12px}
+html[dir=rtl] .foot{font-size:12px}
+html[dir=rtl] .t-meta{font-size:12px}
+/* The address line is forced LTR wherever it appears; on the phone row it is
+   the only thing on its line, so in RTL it is flushed to the right to sit
+   against the protocol chip rather than drifting away from it. */
+html[dir=rtl] .tbl .sub{text-align:right}
+</style>
+<script>
+/* Apply the stored theme before first paint so a manual choice never flashes. */
+(function(){var h=document.documentElement;h.setAttribute("data-js","1");
+try{var t=localStorage.getItem("nx-theme");if(t==="dark"||t==="light")h.setAttribute("data-theme",t);}catch(e){}})();
+</script>
+</head>
+<body>
+{{/* Values placed after "?url=" in an href are percent-encoded by the template
+     engine itself (it knows it is inside a URL query); running urlquery on them
+     first would encode them twice, which no app decodes. Values placed in the
+     path ("streisand://import/…") are passed through unchanged. */}}
+{{ $url := .Sub.URL }}
+{{ $q := .Sub.URL }}
+{{ $name := .Panel.Title }}
+{{ $b64 := b64 .Sub.URL }}
+{{/* Clash and sing-box get their explicit format URL rather than relying on
+     the panel recognising the app's User-Agent. */}}
+{{ $qclash := index .Sub.URLs "clash" }}
+{{ $qsingbox := index .Sub.URLs "singbox" }}
+{{/* Plain incy://add/… or, once the operator has stored INCY's key, the
+     encrypted incy://crypt1/… (see .Sub.Incy in docs/sub-themes.md). */}}
+{{ $incy := .Sub.Incy }}
+{{/* Likewise v2raytun://import/… or the encrypted v2raytun://crypt/… once
+     V2RayTun's public key is stored. */}}
+{{ $v2raytun := .Sub.V2RayTun }}
+<main class="page">
+
+  <input type="radio" name="nx-view" id="v1" class="sel" checked>
+  <input type="radio" name="nx-view" id="v2" class="sel">
+  <input type="radio" name="nx-view" id="v3" class="sel">
+
+  <header class="head">
+    <div class="brand">
+      <h1>{{ .Panel.Title }}</h1>
+      <p class="k">{{ .User.Name }}{{ if .User.Desc }} · {{ .User.Desc }}{{ end }}{{ if .User.Group }} · {{ .User.Group }}{{ end }}</p>
+    </div>
+    <div class="hmeta">
+      <span class="tag{{ if ne .User.Status "active" }} tag-warn{{ end }}">{{ index .T .User.Status }}</span>
+      <span class="live{{ if .User.Online }} on{{ end }}" data-live><i></i><span data-live-text>{{ if .User.Online }}{{ index .T "online" }}{{ else }}{{ index .T "offline" }}{{ end }}</span></span>
+    </div>
+    <div class="hbtns">
+      <button type="button" class="ibtn js-only" id="theme-btn" aria-label="{{ index .T "switchTheme" }}" title="{{ index .T "switchTheme" }}">
+        <svg class="i-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        <svg class="i-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      </button>
+      <details class="langs">
+        <summary class="ibtn" aria-label="{{ index .T "chooseLang" }}" title="{{ index .T "chooseLang" }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+        </summary>
+        <div class="menu">
+          <div class="k">{{ index .T "chooseLang" }}</div>
+          <a href="?lang=en"{{ if eq .Lang "en" }} aria-current="true"{{ end }}>English</a>
+          <a href="?lang=fa"{{ if eq .Lang "fa" }} aria-current="true"{{ end }}>فارسی</a>
+          <a href="?lang=ru"{{ if eq .Lang "ru" }} aria-current="true"{{ end }}>Русский</a>
+          <a href="?lang=zh"{{ if eq .Lang "zh" }} aria-current="true"{{ end }}>中文</a>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <div class="rule-ink"></div>
+  <div class="rule-hair"></div>
+
+  {{ if .Panel.Announce }}
+  <div class="notice">
+    <span class="k">{{ index .T "notice" }}</span>
+    <p>{{ .Panel.Announce }}</p>
+  </div>
+  {{ end }}
+
+  <nav class="tabs">
+    <label for="v1">{{ index .T "tabAccount" }}</label>
+    <label for="v2">{{ index .T "tabSetup" }}</label>
+    <label for="v3">{{ index .T "tabAdvanced" }}</label>
+    {{ if not .Expire.Never }}<span class="t-meta k num">{{ if .Expire.Pending }}{{ num .Expire.Days }} {{ index .T "daysLeft" }}{{ index .T "sep" }}{{ index .T "startsOnFirstUse" }}{{ else if .Expire.Expired }}{{ index .T "expired" }}{{ index .T "sep" }}{{ date .Expire.At }}{{ else }}{{ index .T "expires" }} {{ date .Expire.At }}{{ index .T "sep" }}{{ num .Expire.Days }} {{ index .T "daysLeft" }}{{ end }}</span>{{ end }}
+  </nav>
+
+  <!-- ─── Account ────────────────────────────────────────────────────────── -->
+  <section class="panel" id="p1">
+    <div class="band">
+      <div class="b-ring">
+        <div class="ring">
+          <svg viewBox="0 0 200 200" role="img" aria-label="{{ index .T "usage" }}">
+            <circle cx="100" cy="100" r="90" fill="none" stroke="var(--n300)" stroke-width="4.2"></circle>
+            {{ if not .Usage.Unlimited }}<circle cx="100" cy="100" r="90" fill="none" stroke="var(--accent)" stroke-width="4.2" pathLength="100" stroke-dasharray="{{ .Usage.Percent }} 100" transform="rotate(-90 100 100)" data-ring></circle>{{ end }}
+          </svg>
+          <div class="ring-c">
+            {{ if .Usage.Unlimited }}
+            <span class="ring-v">∞</span>
+            <span class="k">{{ index .T "unlimited" }}</span>
+            {{ else }}
+            <span class="ring-v num"><span data-info="usage.percent">{{ num .Usage.Percent }}</span><small>%</small></span>
+            <span class="k">{{ index .T "quotaUsed" }}</span>
+            {{ end }}
+          </div>
+        </div>
+      </div>
+
+      <div class="b-figs">
+        <div class="fig">
+          <div class="k">{{ index .T "used" }}</div>
+          <div class="fig-v num q" data-info="usage.usedText">{{ num .Usage.UsedText }}</div>
+        </div>
+        <div class="fig">
+          <div class="k">{{ index .T "remaining" }}</div>
+          <div class="fig-v num q" data-info="usage.remainingText">{{ num .Usage.RemainingText }}</div>
+        </div>
+        <div class="split">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+          <div>
+            <div class="k">{{ index .T "uploaded" }}</div>
+            <b class="num q">{{ bytes .Usage.Up }}</b>
+          </div>
+        </div>
+        <div class="split">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+          <div>
+            <div class="k">{{ index .T "downloaded" }}</div>
+            <b class="num q">{{ bytes .Usage.Down }}</b>
+          </div>
+        </div>
+        <p class="b-note num">{{ index .T "totalQuota" }} {{ if .Usage.Unlimited }}{{ index .T "unlimited" }}{{ else }}<span class="q">{{ num .Usage.TotalText }}</span>{{ end }}{{ if .Reset.Auto }}{{ index .T "sep" }}{{ index .T "lifetime" }} <span class="q">{{ num .Usage.LifetimeText }}</span>{{ end }}</p>
+      </div>
+
+      <div class="b-dates">
+        <table class="dl">
+          <tbody>
+            <tr><td>{{ index .T "expires" }}</td><td class="num">{{ if .Expire.Never }}{{ index .T "never" }}{{ else if .Expire.Pending }}{{ index .T "startsOnFirstUse" }}{{ else }}{{ date .Expire.At }}{{ end }}</td></tr>
+            {{ if and (not .Expire.Never) (not .Expire.Expired) }}<tr><td>{{ index .T "daysLeftLabel" }}</td><td class="num">{{ num .Expire.Days }}</td></tr>{{ end }}
+            {{ if .Reset.Auto }}<tr><td>{{ index .T "resetOn" }}</td><td class="num">{{ date .Reset.Next }}</td></tr>{{ end }}
+            {{ if .User.OnlineAt }}<tr><td>{{ index .T "lastOnline" }}</td><td class="num">{{ when .User.OnlineAt .T }}</td></tr>{{ end }}
+          </tbody>
+        </table>
+        {{ if .Panel.SupportURL }}
+        <p class="b-cta">{{ index .T "renewNote" }}</p>
+        <a class="btn btn-1 btn-block" href="{{ .Panel.SupportURL }}" target="_blank" rel="noreferrer noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>{{ index .T "support" }}</a>
+        {{ end }}
+      </div>
+    </div>
+
+    {{ with .Chart }}{{ if .Recording }}
+    <div class="hist">
+      {{ range $i, $r := .Ranges }}<input type="radio" name="nx-hist" id="h{{ $i }}" class="sel"{{ if $r.Default }} checked{{ end }}>
+      {{ end }}<div class="hist-h">
+        <span class="k">{{ index $.T "usageHistory" }}</span>
+        <span class="hist-key">
+          <i class="sw-d"></i>{{ index $.T "downloaded" }}
+          <i class="sw-u"></i>{{ index $.T "uploaded" }}
+        </span>
+        <span class="seg">{{ range $i, $r := .Ranges }}<label for="h{{ $i }}">{{ index $.T $r.LabelKey }}</label>{{ end }}</span>
+      </div>
+      {{ range $i, $r := .Ranges }}
+      <div class="hist-p hist-p{{ $i }}">
+        {{ if $r.Empty }}<p class="hist-none k">{{ index $.T "chartNoData" }}</p>{{ else }}
+        <svg class="hist-c" viewBox="0 0 {{ $r.Width }} {{ $.Chart.Height }}" preserveAspectRatio="none"
+             role="img" aria-label="{{ index $.T "usageHistory" }}">
+          {{ range $r.Points }}<g><title>{{ num .Label }}{{ index $.T "sep" }}{{ num .Text }}</title>
+          <rect class="bt" x="{{ .X }}" y="0" width="{{ .W }}" height="100"/>
+          <rect class="bd" x="{{ .X }}" y="{{ .DownY }}" width="{{ .W }}" height="{{ .DownH }}"/>
+          <rect class="bu" x="{{ .X }}" y="{{ .UpY }}" width="{{ .W }}" height="{{ .UpH }}"/>
+          </g>{{ end }}
+        </svg>
+        <div class="hist-base"></div>
+        <div class="hist-x k num">
+          <span>{{ if eq $r.Span 3600 }}{{ datetime $r.Start }}{{ else }}{{ date $r.Start }}{{ end }}</span>
+          <b class="hist-t num q">{{ num $r.TotalText }}</b>
+          <span>{{ if eq $r.Span 3600 }}{{ datetime $r.End }}{{ else }}{{ date $r.End }}{{ end }}</span>
+        </div>
+        {{ end }}
+      </div>
+      {{ end }}
+    </div>
+    {{ end }}{{ end }}
+
+  </section>
+
+  <!-- ─── Set up ─────────────────────────────────────────────────────────── -->
+  <section class="panel" id="p2">
+    <div class="steps">
+      <div class="scol">
+        <div class="step">
+          <span class="step-n num">{{ num "01" }}</span>
+          <div class="step-b">
+            <h3>{{ index .T "step1" }}</h3>
+            <p>{{ index .T "step1Note" }}</p>
+            <div style="margin-top:13px">
+              <input type="radio" name="nx-pf" id="pf1" class="sel" checked>
+              <input type="radio" name="nx-pf" id="pf2" class="sel">
+              <input type="radio" name="nx-pf" id="pf3" class="sel">
+              <input type="radio" name="nx-pf" id="pf4" class="sel">
+              <input type="radio" name="nx-pf" id="pf5" class="sel">
+              <div class="seg seg-pf" style="margin-bottom:12px">
+                <label for="pf1">iOS</label>
+                <label for="pf2">Android</label>
+                <label for="pf3">Windows</label>
+                <label for="pf4">macOS</label>
+                <label for="pf5">Linux</label>
+              </div>
+              <div class="apps" id="ap1">
+                <div class="app">
+                  <a class="btn btn-2" href="happ://add/{{ $url }}">Happ<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/happ-proxy-utility/id6504287215" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Happ" aria-label="{{ index $.T "download" }} · Happ"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $v2raytun }}">V2RayTun<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/v2raytun/id6476628951" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2RayTun" aria-label="{{ index $.T "download" }} · V2RayTun"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $incy }}">INCY<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/incy/id6756943388" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · INCY" aria-label="{{ index $.T "download" }} · INCY"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="streisand://import/{{ $url }}">Streisand<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Streisand" aria-label="{{ index $.T "download" }} · Streisand"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="shadowrocket://add/sub://{{ $b64 }}">Shadowrocket<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/shadowrocket/id932747118" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Shadowrocket" aria-label="{{ index $.T "download" }} · Shadowrocket"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="v2box://install-sub?url={{ $q }}&name={{ $name }}">V2Box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/v2box-v2ray-client/id6446814690" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2Box" aria-label="{{ index $.T "download" }} · V2Box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sing-box://import-remote-profile?url={{ $qsingbox }}">sing-box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://sing-box.sagernet.org/clients/apple/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · sing-box" aria-label="{{ index $.T "download" }} · sing-box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="hiddify://import/{{ $url }}">Hiddify<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Hiddify" aria-label="{{ index $.T "download" }} · Hiddify"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+              </div>
+              <div class="apps" id="ap2">
+                <div class="app">
+                  <a class="btn btn-2" href="happ://add/{{ $url }}">Happ<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://play.google.com/store/apps/details?id=com.happproxy" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Happ" aria-label="{{ index $.T "download" }} · Happ"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $v2raytun }}">V2RayTun<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://play.google.com/store/apps/details?id=com.v2raytun.android" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2RayTun" aria-label="{{ index $.T "download" }} · V2RayTun"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $incy }}">INCY<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://play.google.com/store/apps/details?id=llc.itdev.incy" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · INCY" aria-label="{{ index $.T "download" }} · INCY"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="v2rayng://install-sub?url={{ $q }}">v2rayNG<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/2dust/v2rayNG/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · v2rayNG" aria-label="{{ index $.T "download" }} · v2rayNG"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="hiddify://import/{{ $url }}">Hiddify<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://play.google.com/store/apps/details?id=app.hiddify.com" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Hiddify" aria-label="{{ index $.T "download" }} · Hiddify"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sn://subscription?url={{ $q }}&name={{ $name }}">NekoBox<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/MatsuriDayo/NekoBoxForAndroid/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · NekoBox" aria-label="{{ index $.T "download" }} · NekoBox"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sing-box://import-remote-profile?url={{ $qsingbox }}">sing-box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://sing-box.sagernet.org/clients/android/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · sing-box" aria-label="{{ index $.T "download" }} · sing-box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="clash://install-config?url={{ $qclash }}">Clash / Mihomo<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/MetaCubeX/ClashMetaForAndroid/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Clash / Mihomo" aria-label="{{ index $.T "download" }} · Clash / Mihomo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+              </div>
+              <div class="apps" id="ap3">
+                <div class="app">
+                  <a class="btn btn-2" href="happ://add/{{ $url }}">Happ<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://www.happ.su/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Happ" aria-label="{{ index $.T "download" }} · Happ"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $v2raytun }}">V2RayTun<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://v2raytun.com/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2RayTun" aria-label="{{ index $.T "download" }} · V2RayTun"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $incy }}">INCY<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/INCY-DEV" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · INCY" aria-label="{{ index $.T "download" }} · INCY"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="hiddify://import/{{ $url }}">Hiddify<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/hiddify/hiddify-app/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Hiddify" aria-label="{{ index $.T "download" }} · Hiddify"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="clash://install-config?url={{ $qclash }}">Clash Verge<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/clash-verge-rev/clash-verge-rev/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Clash Verge" aria-label="{{ index $.T "download" }} · Clash Verge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sing-box://import-remote-profile?url={{ $qsingbox }}">sing-box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://sing-box.sagernet.org/clients/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · sing-box" aria-label="{{ index $.T "download" }} · sing-box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sn://subscription?url={{ $q }}&name={{ $name }}">NekoRay<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/MatsuriDayo/nekoray/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · NekoRay" aria-label="{{ index $.T "download" }} · NekoRay"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+              </div>
+              <div class="apps" id="ap4">
+                <div class="app">
+                  <a class="btn btn-2" href="happ://add/{{ $url }}">Happ<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://www.happ.su/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Happ" aria-label="{{ index $.T "download" }} · Happ"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $v2raytun }}">V2RayTun<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://v2raytun.com/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2RayTun" aria-label="{{ index $.T "download" }} · V2RayTun"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="streisand://import/{{ $url }}">Streisand<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Streisand" aria-label="{{ index $.T "download" }} · Streisand"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="hiddify://import/{{ $url }}">Hiddify<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/hiddify/hiddify-app/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Hiddify" aria-label="{{ index $.T "download" }} · Hiddify"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="v2box://install-sub?url={{ $q }}&name={{ $name }}">V2Box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://apps.apple.com/app/v2box-v2ray-client/id6446814690" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2Box" aria-label="{{ index $.T "download" }} · V2Box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="clash://install-config?url={{ $qclash }}">Clash Verge<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/clash-verge-rev/clash-verge-rev/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Clash Verge" aria-label="{{ index $.T "download" }} · Clash Verge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sing-box://import-remote-profile?url={{ $qsingbox }}">sing-box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://sing-box.sagernet.org/clients/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · sing-box" aria-label="{{ index $.T "download" }} · sing-box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+              </div>
+              <div class="apps" id="ap5">
+                <div class="app">
+                  <a class="btn btn-2" href="happ://add/{{ $url }}">Happ<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://www.happ.su/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Happ" aria-label="{{ index $.T "download" }} · Happ"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $v2raytun }}">V2RayTun<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://v2raytun.com/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · V2RayTun" aria-label="{{ index $.T "download" }} · V2RayTun"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="{{ $incy }}">INCY<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/INCY-DEV" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · INCY" aria-label="{{ index $.T "download" }} · INCY"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="hiddify://import/{{ $url }}">Hiddify<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/hiddify/hiddify-app/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Hiddify" aria-label="{{ index $.T "download" }} · Hiddify"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="clash://install-config?url={{ $qclash }}">Clash Verge<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/clash-verge-rev/clash-verge-rev/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · Clash Verge" aria-label="{{ index $.T "download" }} · Clash Verge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sing-box://import-remote-profile?url={{ $qsingbox }}">sing-box<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://sing-box.sagernet.org/clients/" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · sing-box" aria-label="{{ index $.T "download" }} · sing-box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+                <div class="app">
+                  <a class="btn btn-2" href="sn://subscription?url={{ $q }}&name={{ $name }}">NekoRay<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+                  <a class="btn btn-2 store" href="https://github.com/MatsuriDayo/nekoray/releases" target="_blank" rel="noreferrer noopener" title="{{ index $.T "download" }} · NekoRay" aria-label="{{ index $.T "download" }} · NekoRay"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scol">
+        <div class="step">
+          <span class="step-n num">{{ num "02" }}</span>
+          <div class="step-b">
+            <h3>{{ index .T "step2" }}</h3>
+            <p>{{ index .T "step2Note" }}</p>
+            <div class="linkbox" style="margin-top:13px">
+              <code class="mono">{{ .Sub.URL }}</code>
+              <button type="button" class="btn btn-1 btn-sm" data-copy="{{ .Sub.URL }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>{{ index .T "copy" }}</button>
+            </div>
+
+            <div class="qr-row">
+              <div class="plate">{{ qr .Sub.URL }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step3">
+      <span class="step-n num">{{ num "03" }}</span>
+      <h3>{{ index .T "step3" }}</h3>
+      <p>{{ index .T "step3Note" }}</p>
+    </div>
+
+    {{ if .Apps }}
+    <div class="files">
+      <div class="sec-h">
+        <h3>{{ index .T "files" }}</h3>
+        <span class="k num">{{ num (len .Apps) }}</span>
+      </div>
+      <p class="note-p">{{ index .T "filesNote" }}</p>
+      <div class="fcards">
+        {{ range .Apps }}
+        <div class="fcard">
+          <div class="fcard-h">
+            <span class="tag tag-n">{{ .Type }}</span>
+            <b title="{{ .Name }}">{{ .Name }}</b>
+          </div>
+          {{/* qr yields nothing for content past a QR code's capacity, which
+               an .ovpn carrying a large CA reaches — say so and leave the copy
+               and download buttons to do the job. */}}
+          {{ $code := qr .Content }}
+          {{ if $code }}<div class="plate">{{ $code }}</div>{{ else }}<p class="noqr">{{ index $.T "qrTooBig" }}</p>{{ end }}
+          <details>
+            <summary class="mono" title="{{ .FileName }}">{{ .FileName }}</summary>
+            <pre class="mono">{{ .Content }}</pre>
+          </details>
+          <div class="fcard-act">
+            <button type="button" class="btn btn-2 btn-sm" data-copy="{{ .Content }}"><span>{{ index $.T "copy" }}</span></button>
+            <a class="btn btn-g btn-sm" download="{{ .FileName }}" href="{{ dataURI "text/plain" .Content }}">{{ index $.T "download" }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+          </div>
+        </div>
+        {{ end }}
+      </div>
+    </div>
+    {{ end }}
+  </section>
+
+  <!-- ─── Advanced ───────────────────────────────────────────────────────── -->
+  <section class="panel" id="p3">
+    <div class="sec-h">
+      <h3>{{ index .T "configs" }}</h3>
+      <span class="k num">{{ index .T "shareLinks" }}{{ index .T "sep" }}{{ num (len .Configs) }}</span>
+    </div>
+    {{ if .Configs }}
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>{{ index .T "protocol" }}</th>
+          <th>{{ index .T "cfgName" }}</th>
+          <th class="hide-n">{{ index .T "address" }}</th>
+          <th class="hide-n">{{ index .T "transport" }}</th>
+          <th>{{ index .T "copy" }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Configs }}
+        <tr>
+          <td class="c-tag"><span class="tag tag-n">{{ .Protocol }}</span></td>
+          <td class="c-name"><span class="nm">{{ .Name }}</span><div class="sub mono num">{{ .Address }}{{ if .Network }} · {{ .Network }}{{ end }}{{ if ne .Security "none" }} · {{ .Security }}{{ end }}</div></td>
+          <td class="hide-n mono num">{{ .Address }}</td>
+          <td class="hide-n dim">{{ .Network }}{{ if ne .Security "none" }} · {{ .Security }}{{ end }}</td>
+          <td class="c-copy">{{ if .Link }}<button type="button" class="btn btn-g btn-sm" data-copy="{{ .Link }}">{{ index $.T "copy" }}</button>{{ end }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+    <p class="empty">{{ index .T "noConfigs" }}</p>
+    {{ end }}
+
+    <div class="formats">
+      <div class="sec-h"><h3>{{ index .T "formats" }}</h3></div>
+      <p class="note-p">{{ index .T "formatsNote" }}</p>
+      <div class="fmt">
+        <button type="button" class="btn btn-2 btn-sm" data-copy="{{ index .Sub.URLs "clash" }}">Clash</button>
+        <button type="button" class="btn btn-2 btn-sm" data-copy="{{ index .Sub.URLs "singbox" }}">sing-box</button>
+        <button type="button" class="btn btn-2 btn-sm" data-copy="{{ index .Sub.URLs "xray" }}">Xray</button>
+        <button type="button" class="btn btn-2 btn-sm" data-copy="{{ index .Sub.URLs "plain" }}">Plain</button>
+      </div>
+    </div>
+
+    <!-- Warnings about using these configurations. Ranged over rather than
+         written out, so a notice added later needs no change here. -->
+    {{ range .Notices }}
+    <div class="notice" data-notice="{{ .Key }}">
+      <span class="k">{{ index $.T "notice" }}</span>
+      <p>{{ .Text }}</p>
+    </div>
+    {{ end }}
+  </section>
+
+  <div class="foot">NX · {{ .Panel.Version }}</div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var COPY = {{ index .T "copy" }}, COPIED = {{ index .T "copied" }};
+  var ONLINE = {{ index .T "online" }}, OFFLINE = {{ index .T "offline" }};
+  var INFO = {{ .Sub.URL }} + "/info";
+  var html = document.documentElement;
+
+  /* ── theme ─────────────────────────────────────────────────────────────── */
+  var btn = document.getElementById("theme-btn");
+  var sun = btn && btn.querySelector(".i-sun"), moon = btn && btn.querySelector(".i-moon");
+  function dark() {
+    var set = html.getAttribute("data-theme");
+    if (set) return set === "dark";
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function paintIcon() {
+    if (!sun) return;
+    var d = dark();
+    sun.hidden = d; moon.hidden = !d;
+  }
+  paintIcon();
+  if (btn) btn.addEventListener("click", function () {
+    var next = dark() ? "light" : "dark";
+    html.setAttribute("data-theme", next);
+    try { localStorage.setItem("nx-theme", next); } catch (e) {}
+    paintIcon();
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", paintIcon);
+  }
+
+  /* ── copy ──────────────────────────────────────────────────────────────── */
+  function write(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    // Plain-HTTP panels have no async clipboard; fall back to a hidden textarea.
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      ok ? resolve() : reject();
+    });
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-copy]");
+    if (!b) return;
+    ev.preventDefault();
+    write(b.getAttribute("data-copy")).then(function () {
+      var label = b.querySelector("span") || b, was = label.textContent;
+      label.textContent = COPIED;
+      setTimeout(function () { label.textContent = was === COPIED ? COPY : was; }, 1400);
+    }).catch(function () {});
+  });
+  // The language menu is a <details>; close it when the page is clicked away.
+  document.addEventListener("click", function (ev) {
+    document.querySelectorAll("details.langs[open]").forEach(function (d) {
+      if (!d.contains(ev.target)) d.open = false;
+    });
+  });
+
+  /* ── live status ───────────────────────────────────────────────────────── */
+  // A Persian page writes its figures in Persian digits, as the server did
+  // when it drew them; a value the poll brings is written the same way.
+  var PERSIAN = document.documentElement.lang === "fa";
+  function figure(v) {
+    var s = String(v);
+    if (!PERSIAN) return s;
+    return s.replace(/(\d)\.(?=\d)/g, "$1\u066b").replace(/\d/g, function (d) {
+      return String.fromCharCode(0x06f0 + Number(d));
+    });
+  }
+  function pick(o, path) {
+    return path.split(".").reduce(function (v, k) { return v == null ? v : v[k]; }, o);
+  }
+  function refresh() {
+    fetch(INFO, { headers: { Accept: "application/json" }, cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (info) {
+        if (!info) return;
+        document.querySelectorAll("[data-info]").forEach(function (el) {
+          var v = pick(info, el.getAttribute("data-info"));
+          if (v != null) el.textContent = figure(v);
+        });
+        var ring = document.querySelector("[data-ring]");
+        if (ring && info.usage && !info.usage.unlimited) {
+          ring.setAttribute("stroke-dasharray", info.usage.percent + " 100");
+        }
+        var live = document.querySelector("[data-live]");
+        if (live && info.user) {
+          // The dot and the word behind it are one readout: repainting the dot
+          // and leaving "Online" underneath it is worse than not polling.
+          live.classList.toggle("on", !!info.user.online);
+          var word = live.querySelector("[data-live-text]");
+          if (word) word.textContent = info.user.online ? ONLINE : OFFLINE;
+        }
+      })
+      .catch(function () {});
+  }
+  setInterval(refresh, 30000);
+})();
+</script>
+</body>
+</html>

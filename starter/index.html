@@ -1,0 +1,246 @@
+<!doctype html>
+{{/*
+  Starter: the smallest complete NX subscription page, written to be copied.
+
+  The panel fills this file in as a Go html/template every time a user opens
+  their subscription address in a browser. Everything it can read is in the
+  theme guide: https://docs.nx-panel.org/addons/sub-themes
+
+  Comments like this one are template comments: the panel strips them, so a
+  user never sees them. Delete any section you do not want; nothing depends on
+  anything else except the small script at the bottom.
+
+  Two rules worth keeping when you change it:
+  - Load nothing from another host. The page is opened by someone whose VPN is
+    not up yet, and a blocked font or CDN must not leave them a blank screen.
+  - Print numbers through num, bytes, date and datetime. On a Persian page they
+    write Persian digits and the Solar Hijri calendar for you.
+*/}}
+{{ $url := .Sub.URL }}
+{{ $title := default (index .T "title") .Panel.Title }}
+<html lang="{{ .Lang }}" dir="{{ .Dir }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+{{/* A literal title would also name the theme in the panel's picker; a
+     templated one leaves the picker showing the directory name. */}}
+<title>{{ $title }}</title>
+{{/* Files next to index.html are served under .AssetBase. */}}
+<link rel="stylesheet" href="{{ .AssetBase }}/style.css">
+</head>
+<body>
+<main class="page">
+
+  <header class="card head">
+    <div>
+      <h1>{{ $title }}</h1>
+      <p class="muted">{{ .User.Name }}{{ if .User.Remark }}{{ index .T "sep" }}{{ .User.Remark }}{{ end }}</p>
+    </div>
+    <div class="tags">
+      {{/* .User.Status is one of active, disabled, pending, expired, limited:
+           each is also a phrase key, so .T translates it. */}}
+      <span class="tag tag-{{ .User.Status }}">{{ index .T .User.Status }}</span>
+      <span class="tag{{ if .User.Online }} tag-active{{ end }}" data-live>{{ if .User.Online }}{{ index .T "online" }}{{ else }}{{ index .T "offline" }}{{ end }}</span>
+    </div>
+  </header>
+
+  {{ if .Panel.Announce }}
+  <section class="card note"><p>{{ .Panel.Announce }}</p></section>
+  {{ end }}
+
+  <section class="card">
+    <h2>{{ index .T "usage" }}</h2>
+    {{ if .Usage.Unlimited }}
+    <p class="big"><span data-info="usage.usedText">{{ num .Usage.UsedText }}</span> <span class="muted">{{ index .T "used" }}{{ index .T "sep" }}{{ index .T "unlimited" }}</span></p>
+    {{ else }}
+    <p class="big"><span data-info="usage.usedText">{{ num .Usage.UsedText }}</span> <span class="muted">/ {{ num .Usage.TotalText }}</span></p>
+    <div class="bar"><span data-bar style="width: {{ .Usage.Percent }}%"></span></div>
+    <p class="muted">{{ index .T "remaining" }}: <span data-info="usage.remainingText">{{ num .Usage.RemainingText }}</span></p>
+    {{ end }}
+
+    <dl>
+      <dt>{{ index .T "expires" }}</dt>
+      <dd>
+        {{/* Check Pending before printing a date: the plan starts on the first
+             connection, so .Expire.At is provisional until then. */}}
+        {{ if .Expire.Never }}{{ index .T "never" }}
+        {{ else if .Expire.Pending }}{{ num .Expire.Days }} {{ index .T "daysLeft" }}{{ index .T "sep" }}{{ index .T "startsOnFirstUse" }}
+        {{ else if .Expire.Expired }}{{ index .T "expired" }}{{ index .T "sep" }}{{ date .Expire.At }}
+        {{ else }}{{ date .Expire.At }}{{ index .T "sep" }}{{ num .Expire.Days }} {{ index .T "daysLeft" }}{{ end }}
+      </dd>
+      {{ if .Reset.Auto }}
+      <dt>{{ index .T "resetOn" }}</dt>
+      <dd>{{ date .Reset.Next }}</dd>
+      {{ end }}
+      {{ if and (not .User.Online) .User.OnlineAt }}
+      <dt>{{ index .T "lastOnline" }}</dt>
+      <dd>{{ when .User.OnlineAt .T }}</dd>
+      {{ end }}
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>{{ index .T "subLink" }}</h2>
+    {{/* qr returns nothing for text too long for a QR code, so test it. */}}
+    {{ $code := qr $url }}
+    {{ if $code }}<div class="qr">{{ $code }}</div>{{ end }}
+    <p class="mono">{{ $url }}</p>
+    <div class="row">
+      <button type="button" class="btn btn-1" data-copy="{{ $url }}"><span>{{ index .T "copy" }}</span></button>
+    </div>
+
+    <h3>{{ index .T "import" }}</h3>
+    {{/* Each app has its own link shape. A value after ?url= is written as it
+         is: the engine encodes it, and urlquery here would encode it twice. */}}
+    <div class="row">
+      <a class="btn" href="happ://add/{{ $url }}">Happ</a>
+      <a class="btn" href="{{ .Sub.V2RayTun }}">V2RayTun</a>
+      <a class="btn" href="{{ .Sub.Incy }}">INCY</a>
+      <a class="btn" href="hiddify://import/{{ $url }}">Hiddify</a>
+      <a class="btn" href="v2rayng://install-sub?url={{ $url }}">v2rayNG</a>
+      <a class="btn" href="streisand://import/{{ $url }}">Streisand</a>
+      <a class="btn" href="shadowrocket://add/sub://{{ b64 $url }}">Shadowrocket</a>
+      <a class="btn" href="sing-box://import-remote-profile?url={{ index .Sub.URLs "singbox" }}">sing-box</a>
+      <a class="btn" href="clash://install-config?url={{ index .Sub.URLs "clash" }}">Clash</a>
+    </div>
+  </section>
+
+  {{ if .Apps }}
+  <section class="card">
+    <h2>{{ index .T "files" }}</h2>
+    {{ range .Apps }}
+    <div class="item">
+      <h3>{{ .Name }}</h3>
+      {{ $code := qr .Content }}
+      {{ if $code }}<div class="qr">{{ $code }}</div>{{ else }}<p class="muted">{{ index $.T "qrTooBig" }}</p>{{ end }}
+      <div class="row">
+        <a class="btn btn-1" download="{{ .FileName }}" href="{{ dataURI "text/plain" .Content }}">{{ index $.T "download" }}</a>
+        <button type="button" class="btn" data-copy="{{ .Content }}"><span>{{ index $.T "copy" }}</span></button>
+      </div>
+    </div>
+    {{ end }}
+  </section>
+  {{ end }}
+
+  <section class="card">
+    <h2>{{ index .T "shareLinks" }}</h2>
+    {{ if .Configs }}
+    <ul class="list">
+      {{ range .Configs }}
+      <li>
+        <div>
+          <strong>{{ .Name }}</strong>
+          {{/* .Address is server and port joined, with an IPv6 address in
+               brackets; never write .Server:.Port yourself. */}}
+          <span class="muted mono">{{ .Protocol }}{{ index $.T "sep" }}{{ .Address }}</span>
+        </div>
+        {{ if .Link }}<button type="button" class="btn" data-copy="{{ .Link }}"><span>{{ index $.T "copy" }}</span></button>{{ end }}
+      </li>
+      {{ end }}
+    </ul>
+    {{ else }}
+    <p class="muted">{{ index .T "noConfigs" }}</p>
+    {{ end }}
+
+    <h3>{{ index .T "formats" }}</h3>
+    <div class="row">
+      <button type="button" class="btn" data-copy="{{ index .Sub.URLs "clash" }}">Clash</button>
+      <button type="button" class="btn" data-copy="{{ index .Sub.URLs "singbox" }}">sing-box</button>
+      <button type="button" class="btn" data-copy="{{ index .Sub.URLs "xray" }}">Xray</button>
+      <button type="button" class="btn" data-copy="{{ index .Sub.URLs "plain" }}">Plain</button>
+    </div>
+  </section>
+
+  {{/* Short warnings the panel wants users to read, already translated.
+       Keep the range: a notice added in a later panel version then shows
+       with no change here. */}}
+  {{ range .Notices }}
+  <section class="card note" data-notice="{{ .Key }}">
+    <strong>{{ index $.T "notice" }}</strong>
+    <p>{{ .Text }}</p>
+  </section>
+  {{ end }}
+
+  <footer class="foot">
+    {{ if .Panel.SupportURL }}<a class="btn btn-1" href="{{ .Panel.SupportURL }}" target="_blank" rel="noreferrer noopener">{{ index .T "support" }}</a>{{ end }}
+    <nav class="langs">
+      <a href="?lang=en">English</a>
+      <a href="?lang=fa">فارسی</a>
+      <a href="?lang=ru">Русский</a>
+      <a href="?lang=zh">中文</a>
+    </nav>
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  // Values printed into a script are encoded as JavaScript strings for you.
+  var COPY = {{ index .T "copy" }}, COPIED = {{ index .T "copied" }};
+  var ONLINE = {{ index .T "online" }}, OFFLINE = {{ index .T "offline" }};
+  var INFO = {{ .Sub.URL }} + "/info";
+
+  // Copy buttons. A panel on plain HTTP has no async clipboard, so fall back
+  // to a hidden textarea.
+  function write(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      ok ? resolve() : reject();
+    });
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-copy]");
+    if (!b) return;
+    write(b.getAttribute("data-copy")).then(function () {
+      var label = b.querySelector("span") || b, was = label.textContent;
+      label.textContent = COPIED;
+      setTimeout(function () { label.textContent = was === COPIED ? COPY : was; }, 1400);
+    }).catch(function () {});
+  });
+
+  // Live usage. /info returns the same data as the page, as JSON and without
+  // the links. A Persian page writes the new figures in Persian digits, as
+  // the server did.
+  var PERSIAN = document.documentElement.lang === "fa";
+  function figure(v) {
+    var s = String(v);
+    if (!PERSIAN) return s;
+    return s.replace(/(\d)\.(?=\d)/g, "$1٫").replace(/\d/g, function (d) {
+      return String.fromCharCode(0x06f0 + Number(d));
+    });
+  }
+  function pick(o, path) {
+    return path.split(".").reduce(function (v, k) { return v == null ? v : v[k]; }, o);
+  }
+  function refresh() {
+    fetch(INFO, { headers: { Accept: "application/json" }, cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (info) {
+        if (!info) return;
+        document.querySelectorAll("[data-info]").forEach(function (el) {
+          var v = pick(info, el.getAttribute("data-info"));
+          if (v != null) el.textContent = figure(v);
+        });
+        var bar = document.querySelector("[data-bar]");
+        if (bar && info.usage) bar.style.width = info.usage.percent + "%";
+        var live = document.querySelector("[data-live]");
+        if (live && info.user) {
+          live.classList.toggle("tag-active", !!info.user.online);
+          live.textContent = info.user.online ? ONLINE : OFFLINE;
+        }
+      })
+      .catch(function () {});
+  }
+  setInterval(refresh, 30000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+/* Starter theme. Served from the theme's directory at {{ .AssetBase }}/style.css.
+   Written with logical properties (inline-start, not left) so the same rules
+   lay out a right-to-left Persian page. System fonts only: see index.html. */
+
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #16181d;
+  --muted: #5f6673;
+  --line: #e3e6eb;
+  --accent: #6d4aff;
+  --accent-text: #ffffff;
+  --ok: #138a4b;
+  --warn: #b4560b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --card: #181b21;
+    --text: #e8eaee;
+    --muted: #9aa1ad;
+    --line: #2a2f38;
+    --accent: #8f74ff;
+    --ok: #3fc07f;
+    --warn: #f0a050;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Tahoma, sans-serif;
+}
+.page { max-width: 640px; margin: 0 auto; padding: 16px; display: grid; gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+h3 { font-size: 14px; margin: 16px 0 8px; color: var(--muted); }
+p { margin: 0 0 8px; }
+.muted { color: var(--muted); }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; direction: ltr; text-align: start; }
+
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.tags { display: flex; gap: 6px; }
+.tag { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; color: var(--muted); }
+.tag-active { color: var(--ok); border-color: currentColor; }
+.tag-disabled, .tag-expired, .tag-limited, .tag-pending { color: var(--warn); border-color: currentColor; }
+.note { border-inline-start: 4px solid var(--accent); }
+
+.big { font-size: 22px; font-weight: 600; }
+.big .muted { font-size: 14px; font-weight: 400; }
+.bar { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.bar span { display: block; height: 100%; background: var(--accent); }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 12px 0 0; }
+dt { color: var(--muted); }
+dd { margin: 0; }
+
+.qr { width: 200px; max-width: 100%; margin: 0 auto 12px; background: #fff; padding: 8px; border-radius: 8px; }
+.qr svg { display: block; width: 100%; height: auto; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  display: inline-block; padding: 6px 12px; border-radius: 6px;
+  border: 1px solid var(--line); background: transparent; color: var(--text);
+  font: inherit; font-size: 14px; text-decoration: none; cursor: pointer;
+}
+.btn-1 { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.list li:first-child { border-top: 0; }
+.list li > div { display: grid; min-width: 0; }
+.item + .item { border-top: 1px solid var(--line); margin-top: 12px; }
+
+.foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 4px 0 24px; }
+.langs { display: flex; gap: 12px; font-size: 14px; }
+.langs a { color: var(--muted); }
