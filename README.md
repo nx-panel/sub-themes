@@ -11,9 +11,9 @@ panel fills in) and any files it uses. No build step and no restart.
 
 | Directory | What it is |
 | --- | --- |
-| [`starter/`](starter/) | The smallest complete page, commented to be copied: usage, expiry, QR code, app buttons, configurations, files, notices, live refresh. One HTML file and one stylesheet. |
+| [`starter/`](starter/) | The smallest complete page, commented to be copied: usage, expiry, QR code, app buttons, configurations, files, notices, live refresh. One HTML file, one stylesheet and its `theme.json`. |
 | [`builtin/`](builtin/) | The panel's own two pages, violet and amber, copied from panel `v0.1.0`. |
-| [`check/`](check/) | `go run ./check`: parses every theme the way the panel does. CI runs it on every pull request. |
+| [`check/`](check/) | `go run ./check`: holds every theme to the rules in [CONTRIBUTING.md](CONTRIBUTING.md) and parses it the way the panel does. CI runs it on every pull request. |
 
 ## Install a theme
 
@@ -47,7 +47,8 @@ top-level directory with an `index.html` becomes a theme; `builtin/`,
 ## Write a theme
 
 1. Copy `starter/` (or a page from `builtin/`) to a new directory. The name
-   becomes the theme's name: letters, digits, `.`, `_` and `-`.
+   becomes the theme's name: letters, digits, `.`, `_` and `-`. Fill in its
+   `theme.json`.
 2. Put it in a panel's themes directory and open a user's subscription
    address with `/page` added. Edits show within a few seconds.
 3. Run `go run ./check` before you commit.
@@ -57,16 +58,36 @@ mistake never costs a user their subscription. The panel log says why.
 
 ## Add your theme here
 
-Pull requests with new themes are welcome. A theme here:
+Pull requests with new themes are welcome; a merged theme is an accepted
+one. [CONTRIBUTING.md](CONTRIBUTING.md) has everything it takes. In short, a
+theme here:
 
-- is a top-level directory with an `index.html` and a short `README.md`
-  (what it looks like, with a screenshot, and who made it);
+- is a top-level directory with an `index.html`, a `theme.json` (name,
+  version, title and description in four languages, author), a `README.md`
+  and a `preview.png`;
 - loads nothing from another host: no web fonts, scripts or images from a
   CDN. The page is opened by people whose VPN is not connected yet;
+- sends nothing anywhere: a script reads `/info` and nothing else;
 - works in all four page languages (`en`, `fa`, `ru`, `zh`) and right to left
-  for Persian. Use the panel's phrases (`.T`) or carry your own for all four;
+  for Persian;
+- raises its `version` with every change;
 - passes `go run ./check`;
 - is released under this repository's MIT licence.
+
+## The catalogue
+
+Every change to `main` publishes a release named `catalog-<UTC time>-<commit>`
+(`.github/workflows/catalog.yml`, the last ten kept). It holds:
+
+| File | What |
+| --- | --- |
+| `catalog.tar.gz` | `catalog.json` (every published theme's `theme.json`, plus its archive's name, SHA-256, size and file count, the build's tag, commit and time) and `previews/<name>.png` |
+| `<name>-<version>.tar.gz` | One theme's files, at the archive's root |
+
+`starter/` and `builtin/` are not published. The latest catalogue is always
+at `releases/latest/download/catalog.tar.gz`, so this repository's releases
+are catalogue builds and nothing else. `go run ./check -catalog dist -build
+<tag> -commit <sha>` builds the same files locally.
 
 ## Licence
 

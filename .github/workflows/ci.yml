@@ -3,14 +3,27 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The base commit, for the version rule.
+          fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go vet ./...
-      - name: every theme parses the way the panel parses it
+      - run: go test ./...
+      - name: every theme meets the rules and parses the way the panel parses it
+        if: github.event_name != 'pull_request'
         run: go run ./check
+      - name: every theme meets the rules, and every changed one raised its version
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: go run ./check -base "$BASE" -author "$AUTHOR"

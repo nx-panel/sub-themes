@@ -1,0 +1,43 @@
+# Every change to main publishes the catalogue NX panels read: a release
+# holding catalog.tar.gz (catalog.json and the previews) and one archive per
+# theme. Panels fetch releases/latest/download/catalog.tar.gz, then a theme's
+# archive from the release that catalogue names, so this repository's
+# releases are catalogue builds and nothing else. The last ten are kept.
+name: catalog
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: build the catalogue (only when every theme passes check)
+        run: |
+          TAG="catalog-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          go run ./check -catalog dist -build "$TAG" -commit "$GITHUB_SHA"
+      - name: publish it as the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" --latest \
+            --notes "Theme catalogue built from $GITHUB_SHA. Read by NX panels; see the README."
+      - name: keep the last ten builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 200 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("catalog-"))] | sort_by(.createdAt) | reverse | .[10:] | .[].tagName' |
+          while read -r tag; do
+            gh release delete "$tag" --cleanup-tag --yes
+          done

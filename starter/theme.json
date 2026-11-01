@@ -1,0 +1,21 @@
+{
+  "name": "starter",
+  "version": "1.0.0",
+  "title": {
+    "en": "Starter",
+    "fa": "پایه",
+    "ru": "Стартовая",
+    "zh": "入门"
+  },
+  "description": {
+    "en": "The smallest complete page, commented to be copied.",
+    "fa": "کوچک‌ترین صفحهٔ کامل، با توضیح، برای کپی کردن.",
+    "ru": "Самая маленькая полная страница с комментариями, чтобы её скопировать.",
+    "zh": "最小的完整页面，带注释，供复制修改。"
+  },
+  "author": {
+    "name": "NX",
+    "github": "nx-panel"
+  },
+  "panelMin": "0.1.0"
+}
