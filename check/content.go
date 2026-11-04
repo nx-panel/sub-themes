@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"image"
 	_ "image/png" // preview.png
 	"io/fs"
@@ -10,7 +11,9 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // The limits a theme in this repository stays within. The panel's catalogue
@@ -217,22 +220,113 @@ var loadAttrs = map[string][]string{
 	"script":  {"href", "xlink:href"},
 }
 
-// scan reports what a file of kind ext would load from another host, and
-// script constructs that are not allowed.
+// ---- the panel's API ----
+//
+// A theme is served from the panel's own origin, so a request it makes to
+// the panel carries the cookie of whoever is signed in to the panel in that
+// browser: a main admin opening a user's page would hand the theme every route
+// they can reach. The panel does not fence the page off with a CSP (owner,
+// 2026-11-04); this check is the fence instead, run on every pull request and
+// before every catalogue build.
+//
+// It does not try to parse a script, which a stray quote in a regex or a
+// comment would defeat. It reads every line of every page, script,
+// stylesheet, image and data file as the browser would after decoding it —
+// HTML entities, JavaScript escapes (\x69, \u0069, \u{69}, \/), percent
+// escapes, and two quoted pieces joined with "+" — and refuses any mention of
+// the API's path there: "/api" as a path segment of this origin ("/api",
+// "/api/…", "./api", "../api/…"), or "api/v1" relative. An address on
+// another host ("https://docs.example.com/api") is a link and passes, and so
+// does the word "api" on its own ("API", class="api"). A path assembled
+// beyond that ("/a" + x + "pi", built at run time) passes this check and not
+// the review, which reads every script.
+
+var (
+	// apiPathRe is the API's path on this origin: "/api" not preceded by a
+	// character a host name or another path segment would end in, then the
+	// end of the path segment.
+	apiPathRe = regexp.MustCompile(`(?i)(?:^|[^a-z0-9_.~%-]|\.{1,2})/api(?:[/?#\s"'` + "`" + `)>;,]|$)`)
+	// apiRelRe is the versioned API written relative: "api/v1".
+	apiRelRe = regexp.MustCompile(`(?i)(?:^|[^a-z0-9_.~%/-])api/v[0-9]+\b`)
+
+	// The escapes a browser or a script would decode before the path is
+	// used, and a string joined from quoted pieces.
+	jsHexRe      = regexp.MustCompile(`\\x([0-9a-fA-F]{2})`)
+	jsUniRe      = regexp.MustCompile(`\\u([0-9a-fA-F]{4})`)
+	jsUniBraceRe = regexp.MustCompile(`\\u\{([0-9a-fA-F]{1,6})\}`)
+	percentRe    = regexp.MustCompile(`%([0-9a-fA-F]{2})`)
+	joinRe       = regexp.MustCompile("[\"'`]\\s*\\+\\s*[\"'`]")
+)
+
+// decodeForScan is a line as it would read once decoded, repeated until it
+// stops changing (a percent escape inside a JS escape, and so on).
+func decodeForScan(line string) string {
+	hexRune := func(re *regexp.Regexp) func(string) string {
+		return func(m string) string {
+			sub := re.FindStringSubmatch(m)
+			n, err := strconv.ParseUint(sub[1], 16, 32)
+			if err != nil || n > unicode.MaxRune {
+				return m
+			}
+			return string(rune(n))
+		}
+	}
+	for range 4 {
+		next := html.UnescapeString(line)
+		next = jsUniBraceRe.ReplaceAllStringFunc(next, hexRune(jsUniBraceRe))
+		next = jsUniRe.ReplaceAllStringFunc(next, hexRune(jsUniRe))
+		next = jsHexRe.ReplaceAllStringFunc(next, hexRune(jsHexRe))
+		next = strings.ReplaceAll(next, `\/`, "/")
+		next = percentRe.ReplaceAllStringFunc(next, hexRune(percentRe))
+		next = joinRe.ReplaceAllString(next, "")
+		if next == line {
+			break
+		}
+		line = next
+	}
+	return line
+}
+
+// scanAPI reports each line that mentions the panel's API path, with its
+// number.
+func scanAPI(text string) []string {
+	var out []string
+	for n, line := range strings.Split(text, "\n") {
+		decoded := decodeForScan(line)
+		m := apiPathRe.FindString(decoded)
+		if m == "" {
+			m = apiRelRe.FindString(decoded)
+		}
+		if m == "" {
+			continue
+		}
+		out = append(out, fmt.Sprintf("line %d mentions the panel's API path (%s): a theme runs with the sign-in of whoever is logged in to the panel, so it may read /info and nothing else there",
+			n+1, strings.TrimSpace(m)))
+	}
+	return out
+}
+
+// scan reports what a file of kind ext would load from another host, what
+// would reach the panel's API, and script constructs that are not allowed.
 func scan(ext string, raw []byte) []string {
 	text := string(raw)
 	switch ext {
 	case ".html":
 		out := scanTags(text, false)
 		out = append(out, scanCSS(text)...)
+		out = append(out, scanAPI(text)...)
 		return append(out, scanJS(text)...)
 	case ".svg":
 		out := scanTags(text, true)
-		return append(out, scanCSS(text)...)
+		out = append(out, scanCSS(text)...)
+		return append(out, scanAPI(text)...)
 	case ".css":
-		return scanCSS(text)
+		return append(scanCSS(text), scanAPI(text)...)
 	case ".js":
-		return scanJS(text)
+		return append(scanJS(text), scanAPI(text)...)
+	case ".json":
+		// Data a script reads could hold the path for it.
+		return scanAPI(text)
 	}
 	return nil
 }

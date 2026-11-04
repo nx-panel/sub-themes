@@ -74,6 +74,17 @@ and every configuration on it. A script may read `/info` (the address with
 `/info` added) and nothing else. No analytics, no counters, no error
 reporting.
 
+**Never touch the panel's API.** The page is served from the panel's own
+address, so a request to the panel carries the sign-in of whoever is logged
+in to it in that browser — an admin opening a user's page would hand the
+theme every action they can take. `check` refuses any line of a page,
+script, stylesheet, SVG or JSON file that mentions the API's path on the
+panel's own address — `/api`, `/api/…`, `../api/…`, `api/v1/…` — once
+HTML entities, JavaScript and percent escapes are decoded and quoted pieces
+joined with `+` are put together. A link to another site's `/api` page and
+the word "API" on its own pass. The review refuses a path assembled any
+other way.
+
 **No code from text.** No `eval`, `new Function`, a string passed to
 `setTimeout` / `setInterval`, a dynamic `import()` or `document.write`. An
 SVG has no `<script>`, `<foreignObject>` or `on…` attributes.

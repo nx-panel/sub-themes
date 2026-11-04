@@ -68,6 +68,8 @@ theme here:
 - loads nothing from another host: no web fonts, scripts or images from a
   CDN. The page is opened by people whose VPN is not connected yet;
 - sends nothing anywhere: a script reads `/info` and nothing else;
+- never touches the panel's API: the page runs with the sign-in of whoever is
+  logged in to the panel, so `check` refuses any mention of its `/api` path;
 - works in all four page languages (`en`, `fa`, `ru`, `zh`) and right to left
   for Persian;
 - raises its `version` with every change;
