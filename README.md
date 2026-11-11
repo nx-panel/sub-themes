@@ -12,7 +12,7 @@ panel fills in) and any files it uses. No build step and no restart.
 | Directory | What it is |
 | --- | --- |
 | [`starter/`](starter/) | The smallest complete page, commented to be copied: usage, expiry, QR code, app buttons, configurations, files, notices, live refresh. One HTML file, one stylesheet and its `theme.json`. |
-| [`builtin/`](builtin/) | The panel's own two pages, violet and amber, copied from panel `v0.1.0`. |
+| [`builtin/`](builtin/) | The panel's own two pages, violet and amber, copied from the panel release after `v0.1.1`: their MTProxy rows read `.Open`, which a panel up to `v0.1.1` does not have. For such a panel, start from the copies at commit `6074a30`. |
 | [`check/`](check/) | `go run ./check`: holds every theme to the rules in [CONTRIBUTING.md](CONTRIBUTING.md) and parses it the way the panel does. CI runs it on every pull request. |
 
 ## Install a theme

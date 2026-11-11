@@ -898,7 +898,7 @@ try{var t=localStorage.getItem("nx-theme");if(t==="dark"||t==="light")h.setAttri
           <td class="c-name"><span class="nm">{{ .Name }}</span><div class="sub mono num">{{ .Address }}{{ if .Network }} · {{ .Network }}{{ end }}{{ if ne .Security "none" }} · {{ .Security }}{{ end }}</div></td>
           <td class="hide-n mono num">{{ .Address }}</td>
           <td class="hide-n dim">{{ .Network }}{{ if ne .Security "none" }} · {{ .Security }}{{ end }}</td>
-          <td class="c-copy">{{ if .Link }}<button type="button" class="btn btn-g btn-sm" data-copy="{{ .Link }}">{{ index $.T "copy" }}</button>{{ end }}</td>
+          <td class="c-copy">{{ if .Open }}<a class="btn btn-1 btn-sm" href="{{ .Open }}">{{ index $.T "openTelegram" }}</a> {{ end }}{{ if .Link }}<button type="button" class="btn btn-g btn-sm" data-copy="{{ .Link }}">{{ index $.T "copy" }}</button>{{ end }}</td>
         </tr>
         {{ end }}
       </tbody>
