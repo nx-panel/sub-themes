@@ -116,7 +116,7 @@
       {{ $code := qr .Content }}
       {{ if $code }}<div class="qr">{{ $code }}</div>{{ else }}<p class="muted">{{ index $.T "qrTooBig" }}</p>{{ end }}
       <div class="row">
-        <a class="btn btn-1" download="{{ .FileName }}" href="{{ dataURI "text/plain" .Content }}">{{ index $.T "download" }}</a>
+        <a class="btn btn-1" download="{{ .FileName }}" href="{{ dataURI "application/octet-stream" .Content }}">{{ index $.T "download" }}</a>
         <button type="button" class="btn" data-copy="{{ .Content }}"><span>{{ index $.T "copy" }}</span></button>
       </div>
     </div>

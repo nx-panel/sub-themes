@@ -933,7 +933,7 @@ try{var t=localStorage.getItem("nx-theme");if(t==="dark"||t==="light")h.setAttri
           </details>
           <div class="fcard-act">
             <button type="button" class="btn btn-2 btn-sm" data-copy="{{ .Content }}"><span>{{ index $.T "copy" }}</span></button>
-            <a class="btn btn-g btn-sm" download="{{ .FileName }}" href="{{ dataURI "text/plain" .Content }}">{{ index $.T "download" }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
+            <a class="btn btn-g btn-sm" download="{{ .FileName }}" href="{{ dataURI "application/octet-stream" .Content }}">{{ index $.T "download" }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></a>
           </div>
         </div>
         {{ end }}
