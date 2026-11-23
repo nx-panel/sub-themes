@@ -1,3 +1,3 @@
 module github.com/nx-panel/sub-themes
 
-go 1.27.3
+go 1.27.4
