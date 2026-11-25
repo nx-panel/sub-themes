@@ -5,7 +5,8 @@
   installed theme fails) is its sibling, ../violet/index.html, which wears the
   panel's own colours; the two share every line of markup that matters, so a
   fix to one belongs in the other. It is also a reference implementation a
-  theme is copied from: docs/sub-themes.md documents every value it reads.
+  theme is copied from: docs.nx-panel.org/addons/sub-themes documents every
+  value it reads.
 
   One file on purpose: no build step and no asset request that can fail. The web
   fonts are the single exception, and they are loaded non-render-blocking (the
@@ -472,7 +473,7 @@ try{var t=localStorage.getItem("nx-theme");if(t==="dark"||t==="light")h.setAttri
 {{ $qclash := index .Sub.URLs "clash" }}
 {{ $qsingbox := index .Sub.URLs "singbox" }}
 {{/* Plain incy://add/… or, once the operator has stored INCY's key, the
-     encrypted incy://crypt1/… (see .Sub.Incy in docs/sub-themes.md). */}}
+     encrypted incy://crypt1/… (see .Sub.Incy at docs.nx-panel.org/addons/sub-themes). */}}
 {{ $incy := .Sub.Incy }}
 {{/* Likewise v2raytun://import/… or the encrypted v2raytun://crypt/… once
      V2RayTun's public key is stored. */}}
